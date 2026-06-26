@@ -1,3 +1,53 @@
+-- Venom Spitter Low Lag
+-- Client-side visual reducer for your own Roblox experience.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+
+local TARGET_NAME = "venom spitter"
+local enabled = true
+local originals = {}
+
+local function notify(text)
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "Venom Low Lag",
+			Text = text,
+			Duration = 4,
+		})
+	end)
+end
+
+local function save(instance, property)
+	originals[instance] = originals[instance] or {}
+
+	if originals[instance][property] == nil then
+		local ok, value = pcall(function()
+			return instance[property]
+		end)
+
+		if ok then
+			originals[instance][property] = value
+		end
+	end
+end
+
+local function set(instance, property, value)
+	save(instance, property)
+	pcall(function()
+		instance[property] = value
+	end)
+end
+
+local function isTarget(instance)
+	local current = instance
+
+	while current and current ~= Workspace do
+		if string.find(string.lower(current.Name), TARGET_NAME, 1, true) then
+			return true
 		end
 
 		current = current.Parent
