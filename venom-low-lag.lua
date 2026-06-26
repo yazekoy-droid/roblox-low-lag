@@ -1,3 +1,14 @@
+local function isInsideTarget(instance)
+	local current = instance
+
+	while current and current ~= Workspace do
+		if isTargetName(current.Name) then
+			return true
+		end
+
+		current = current.Parent
+	end
+
 	return false
 end
 
@@ -63,13 +74,33 @@ local function makeUI()
 		return
 	end
 
-	if not localPlayer then
-		warn("[Venom Low Lag] LocalPlayer not found.")
+	local parentGui
+
+	if gethui then
+		pcall(function()
+			parentGui = gethui()
+		end)
+	end
+
+	if not parentGui then
+		pcall(function()
+			parentGui = CoreGui
+		end)
+	end
+
+	if not parentGui and localPlayer then
+		pcall(function()
+			parentGui = localPlayer:WaitForChild("PlayerGui", 5)
+		end)
+	end
+
+	if not parentGui then
+		warn("[Venom Low Lag] No GUI parent found.")
+		notify("Venom Low Lag", "Loaded, but UI parent was not found.")
 		return
 	end
 
-	local playerGui = localPlayer:WaitForChild("PlayerGui")
-	local oldGui = playerGui:FindFirstChild("VenomSpitterLowLagUI")
+	local oldGui = parentGui:FindFirstChild("VenomSpitterLowLagUI")
 
 	if oldGui then
 		oldGui:Destroy()
@@ -78,19 +109,28 @@ local function makeUI()
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "VenomSpitterLowLagUI"
 	screenGui.ResetOnSpawn = false
-	screenGui.Parent = playerGui
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	if syn and syn.protect_gui then
+		pcall(function()
+			syn.protect_gui(screenGui)
+		end)
+	end
+
+	screenGui.Parent = parentGui
 
 	local button = Instance.new("TextButton")
 	button.Name = "Toggle"
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.Position = UDim2.fromScale(0.985, 0.32)
-	button.Size = UDim2.fromOffset(180, 42)
+	button.AnchorPoint = Vector2.new(0, 0.5)
+	button.Position = UDim2.fromScale(0.03, 0.5)
+	button.Size = UDim2.fromOffset(220, 48)
 	button.BackgroundColor3 = config.Enabled and Color3.fromRGB(35, 120, 80) or Color3.fromRGB(44, 48, 56)
 	button.BorderSizePixel = 0
 	button.Font = Enum.Font.GothamBold
 	button.Text = config.Enabled and "Venom Low Lag: ON" or "Venom Low Lag: OFF"
 	button.TextColor3 = Color3.fromRGB(255, 255, 255)
-	button.TextSize = 14
+	button.TextSize = 16
+	button.ZIndex = 999
 	button.Parent = screenGui
 
 	local corner = Instance.new("UICorner")
@@ -110,6 +150,8 @@ local function makeUI()
 			restoreAll()
 		end
 	end)
+
+	notify("Venom Low Lag", "UI loaded. Button is on the left side.")
 end
 
 Workspace.DescendantAdded:Connect(function(instance)
@@ -122,16 +164,16 @@ Workspace.DescendantAdded:Connect(function(instance)
 	end)
 end)
 
-RunService.RenderStepped:Connect(function()
-	if not config.Enabled then
-		return
-	end
-
-	for part in pairs(trackedParts) do
-		if not part.Parent then
-			trackedParts[part] = nil
-		else
-			part.LocalTransparencyModifier = 1
+task.spawn(function()
+	while task.wait(0.25) do
+		if config.Enabled then
+			for part in pairs(trackedParts) do
+				if not part.Parent then
+					trackedParts[part] = nil
+				else
+					part.LocalTransparencyModifier = 1
+				end
+			end
 		end
 	end
 end)
