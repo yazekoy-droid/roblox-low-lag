@@ -1,9 +1,3 @@
-local function isInsideTarget(instance)
-	local current = instance
-
-	while current and current ~= Workspace do
-		if isTargetName(current.Name) then
-			return true
 		end
 
 		current = current.Parent
@@ -12,173 +6,136 @@ local function isInsideTarget(instance)
 	return false
 end
 
-local function stopAnimator(animator)
-	if not config.StopAnimations then
-		return
-	end
-
-	local ok, tracks = pcall(function()
-		return animator:GetPlayingAnimationTracks()
-	end)
-
-	if not ok then
-		return
-	end
-
-	for _, track in ipairs(tracks) do
-		pcall(function()
-			track:Stop(0)
-		end)
-	end
-end
-
-local function hideInstance(instance)
-	if not isInsideTarget(instance) then
+local function hide(instance)
+	if not enabled or not isTarget(instance) then
 		return
 	end
 
 	if instance:IsA("BasePart") then
-		trackedParts[instance] = true
-		setProperty(instance, "LocalTransparencyModifier", 1)
-
-		if config.DisableShadows then
-			setProperty(instance, "CastShadow", false)
-		end
-	elseif config.HideTextures and (instance:IsA("Decal") or instance:IsA("Texture")) then
-		setProperty(instance, "Transparency", 1)
-	elseif config.HideEffects and (instance:IsA("ParticleEmitter") or instance:IsA("Trail") or instance:IsA("Beam")) then
-		setProperty(instance, "Enabled", false)
-	elseif config.HideEffects and (instance:IsA("Smoke") or instance:IsA("Fire") or instance:IsA("Sparkles")) then
-		setProperty(instance, "Enabled", false)
+		set(instance, "LocalTransparencyModifier", 1)
+		set(instance, "CastShadow", false)
+	elseif instance:IsA("Decal") or instance:IsA("Texture") then
+		set(instance, "Transparency", 1)
+	elseif instance:IsA("ParticleEmitter") or instance:IsA("Trail") or instance:IsA("Beam") then
+		set(instance, "Enabled", false)
+	elseif instance:IsA("Smoke") or instance:IsA("Fire") or instance:IsA("Sparkles") then
+		set(instance, "Enabled", false)
 	elseif instance:IsA("BillboardGui") or instance:IsA("SurfaceGui") then
-		setProperty(instance, "Enabled", false)
+		set(instance, "Enabled", false)
 	elseif instance:IsA("Animator") then
-		stopAnimator(instance)
+		pcall(function()
+			for _, track in ipairs(instance:GetPlayingAnimationTracks()) do
+				track:Stop(0)
+			end
+		end)
 	end
 end
 
-local function applyLowLag()
-	if not config.Enabled then
-		return
-	end
-
-	setProperty(Lighting, "GlobalShadows", false)
+local function applyAll()
+	set(Lighting, "GlobalShadows", false)
 
 	for _, instance in ipairs(Workspace:GetDescendants()) do
-		hideInstance(instance)
+		hide(instance)
 	end
+end
+
+local function restoreAll()
+	for instance, values in pairs(originals) do
+		if instance and instance.Parent then
+			for property, value in pairs(values) do
+				pcall(function()
+					instance[property] = value
+				end)
+			end
+		end
+	end
+
+	originals = {}
+end
+
+local function getGuiParent()
+	if gethui then
+		local ok, gui = pcall(gethui)
+		if ok and gui then
+			return gui
+		end
+	end
+
+	local ok = pcall(function()
+		local _ = CoreGui.Name
+	end)
+
+	if ok then
+		return CoreGui
+	end
+
+	local player = Players.LocalPlayer
+	return player and player:WaitForChild("PlayerGui", 5)
 end
 
 local function makeUI()
-	if not config.ShowUI then
+	local parent = getGuiParent()
+
+	if not parent then
+		notify("Loaded, but UI could not be created.")
 		return
 	end
 
-	local parentGui
-
-	if gethui then
-		pcall(function()
-			parentGui = gethui()
-		end)
+	local old = parent:FindFirstChild("VenomLowLagUI")
+	if old then
+		old:Destroy()
 	end
 
-	if not parentGui then
-		pcall(function()
-			parentGui = CoreGui
-		end)
-	end
-
-	if not parentGui and localPlayer then
-		pcall(function()
-			parentGui = localPlayer:WaitForChild("PlayerGui", 5)
-		end)
-	end
-
-	if not parentGui then
-		warn("[Venom Low Lag] No GUI parent found.")
-		notify("Venom Low Lag", "Loaded, but UI parent was not found.")
-		return
-	end
-
-	local oldGui = parentGui:FindFirstChild("VenomSpitterLowLagUI")
-
-	if oldGui then
-		oldGui:Destroy()
-	end
-
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "VenomSpitterLowLagUI"
-	screenGui.ResetOnSpawn = false
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-	if syn and syn.protect_gui then
-		pcall(function()
-			syn.protect_gui(screenGui)
-		end)
-	end
-
-	screenGui.Parent = parentGui
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "VenomLowLagUI"
+	gui.ResetOnSpawn = false
+	gui.Parent = parent
 
 	local button = Instance.new("TextButton")
-	button.Name = "Toggle"
-	button.AnchorPoint = Vector2.new(0, 0.5)
-	button.Position = UDim2.fromScale(0.03, 0.5)
 	button.Size = UDim2.fromOffset(220, 48)
-	button.BackgroundColor3 = config.Enabled and Color3.fromRGB(35, 120, 80) or Color3.fromRGB(44, 48, 56)
+	button.Position = UDim2.fromScale(0.03, 0.5)
+	button.AnchorPoint = Vector2.new(0, 0.5)
+	button.BackgroundColor3 = Color3.fromRGB(35, 120, 80)
 	button.BorderSizePixel = 0
 	button.Font = Enum.Font.GothamBold
-	button.Text = config.Enabled and "Venom Low Lag: ON" or "Venom Low Lag: OFF"
+	button.Text = "Venom Low Lag: ON"
 	button.TextColor3 = Color3.fromRGB(255, 255, 255)
 	button.TextSize = 16
 	button.ZIndex = 999
-	button.Parent = screenGui
+	button.Parent = gui
 
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = button
 
 	button.MouseButton1Click:Connect(function()
-		config.Enabled = not config.Enabled
+		enabled = not enabled
+		button.Text = enabled and "Venom Low Lag: ON" or "Venom Low Lag: OFF"
+		button.BackgroundColor3 = enabled and Color3.fromRGB(35, 120, 80) or Color3.fromRGB(50, 54, 62)
 
-		if config.Enabled then
-			button.Text = "Venom Low Lag: ON"
-			button.BackgroundColor3 = Color3.fromRGB(35, 120, 80)
-			applyLowLag()
+		if enabled then
+			applyAll()
 		else
-			button.Text = "Venom Low Lag: OFF"
-			button.BackgroundColor3 = Color3.fromRGB(44, 48, 56)
 			restoreAll()
 		end
 	end)
 
-	notify("Venom Low Lag", "UI loaded. Button is on the left side.")
+	notify("Loaded. Button is on the left side.")
 end
 
 Workspace.DescendantAdded:Connect(function(instance)
-	if not config.Enabled then
-		return
-	end
-
-	task.defer(function()
-		hideInstance(instance)
-	end)
+	task.wait(0.05)
+	hide(instance)
 end)
 
 task.spawn(function()
-	while task.wait(0.25) do
-		if config.Enabled then
-			for part in pairs(trackedParts) do
-				if not part.Parent then
-					trackedParts[part] = nil
-				else
-					part.LocalTransparencyModifier = 1
-				end
-			end
+	while task.wait(0.5) do
+		if enabled then
+			applyAll()
 		end
 	end
 end)
 
 makeUI()
-applyLowLag()
-
-print("[Venom Low Lag] Loaded. Target: Venom Spitter")
+applyAll()
+print("[Venom Low Lag] Loaded")
