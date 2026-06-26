@@ -1,42 +1,3 @@
-
-local function restoreAll()
-	for instance, properties in pairs(originals) do
-		if instance and instance.Parent then
-			for property, value in pairs(properties) do
-				pcall(function()
-					instance[property] = value
-				end)
-			end
-		end
-	end
-
-	table.clear(originals)
-	table.clear(trackedParts)
-end
-
-local function isTargetName(name)
-	local lowerName = string.lower(name)
-
-	for _, targetName in ipairs(config.HideNames) do
-		if lowerName == string.lower(targetName) then
-			return true
-		end
-	end
-
-	return false
-end
-
-local function isInsideTarget(instance)
-	local current = instance
-
-	while current and current ~= Workspace do
-		if isTargetName(current.Name) then
-			return true
-		end
-
-		current = current.Parent
-	end
-
 	return false
 end
 
@@ -45,7 +6,15 @@ local function stopAnimator(animator)
 		return
 	end
 
-	for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+	local ok, tracks = pcall(function()
+		return animator:GetPlayingAnimationTracks()
+	end)
+
+	if not ok then
+		return
+	end
+
+	for _, track in ipairs(tracks) do
 		pcall(function()
 			track:Stop(0)
 		end)
@@ -91,6 +60,11 @@ end
 
 local function makeUI()
 	if not config.ShowUI then
+		return
+	end
+
+	if not localPlayer then
+		warn("[Venom Low Lag] LocalPlayer not found.")
 		return
 	end
 
@@ -164,3 +138,5 @@ end)
 
 makeUI()
 applyLowLag()
+
+print("[Venom Low Lag] Loaded. Target: Venom Spitter")
